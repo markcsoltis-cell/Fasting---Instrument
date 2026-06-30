@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Fasting Instrument</title>
+  <style>
+    :root { --bg:#0b0f14; --card:#141a22; --text:#eef3f8; --muted:#9aa6b2; --line:#27313c; --accent:#8bd3ff; --good:#7ee787; --warn:#ffd166; }
+    *{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);}
+    main{max-width:520px;margin:0 auto;padding:22px 16px 40px;}
+    h1{font-size:18px;letter-spacing:2px;color:var(--muted);font-weight:700;margin:8px 0 18px;text-align:center}
+    .timer{font-size:54px;font-weight:800;text-align:center;letter-spacing:-2px;margin:12px 0 6px;}
+    .sub{text-align:center;color:var(--muted);font-size:14px;margin-bottom:18px;}
+    .buttons{display:flex;gap:10px;margin:16px 0 22px;}
+    button{flex:1;border:0;border-radius:16px;padding:15px 12px;font-size:16px;font-weight:700;background:var(--accent);color:#071018;}
+    button.secondary{background:var(--card);color:var(--text);border:1px solid var(--line);}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px;margin:14px 0;box-shadow:0 10px 30px rgba(0,0,0,.2);}
+    .card h2{font-size:18px;margin:0 0 12px;}
+    .row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line);}
+    .row:first-of-type{border-top:0}
+    .label{color:var(--text)} .confidence{color:var(--muted);font-size:13px;white-space:nowrap}
+    .good{color:var(--good)} .warn{color:var(--warn)}
+    .note{color:var(--muted);font-size:13px;line-height:1.45;margin-top:12px;}
+    .milestone{padding:11px 0;border-top:1px solid var(--line);display:flex;gap:12px;}
+    .hour{width:54px;color:var(--accent);font-weight:800}
+    .desc{flex:1;color:var(--text)}
+  </style>
+</head>
+<body>
+<main>
+  <h1>FASTING INSTRUMENT</h1>
+  <div class="timer" id="timer">00:00:00</div>
+  <div class="sub" id="started">Not currently fasting</div>
+  <div class="buttons">
+    <button id="startBtn">Start Fast</button>
+    <button class="secondary" id="resetBtn">Reset</button>
+  </div>
+
+  <section class="card">
+    <h2>Your Body Right Now</h2>
+    <div id="state"></div>
+    <div class="note">These are physiology estimates, not medical measurements. Autophagy timing is especially individual.</div>
+  </section>
+
+  <section class="card">
+    <h2>Training Readiness</h2>
+    <div id="training"></div>
+  </section>
+
+  <section class="card">
+    <h2>Timeline</h2>
+    <div class="milestone"><div class="hour">8h</div><div class="desc">Insulin usually falling; post-meal digestion mostly complete.</div></div>
+    <div class="milestone"><div class="hour">12h</div><div class="desc">Glycogen use increases; fat oxidation rises.</div></div>
+    <div class="milestone"><div class="hour">18h</div><div class="desc">Fat oxidation often becomes dominant.</div></div>
+    <div class="milestone"><div class="hour">24h</div><div class="desc">Ketone production commonly increasing.</div></div>
+    <div class="milestone"><div class="hour">36h</div><div class="desc">Glycogen largely depleted; autophagy likely increasing.</div></div>
+    <div class="milestone"><div class="hour">48h</div><div class="desc">Extended fast; electrolytes and training intensity matter more.</div></div>
+    <div class="milestone"><div class="hour">72h</div><div class="desc">Deep fast; use extra caution with exertion and refeeding.</div></div>
+  </section>
+</main>
+
+<script>
+let start = localStorage.getItem("fastStart") ? Number(localStorage.getItem("fastStart")) : null;
+
+function fmt(ms){
+  const total = Math.floor(ms/1000);
+  const h = Math.floor(total/3600);
+  const m = Math.floor((total%3600)/60);
+  const s = total%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function phase(hours){
+  if(hours < 8) return [
+    ["Digestion / absorption", "High"],
+    ["Insulin elevated then falling", "High"],
+    ["Glycogen being stored or used", "High"]
+  ];
+  if(hours < 16) return [
+    ["Insulin falling", "High"],
+    ["Fat oxidation increasing", "High"],
+    ["Liver glycogen being used", "High"]
+  ];
+  if(hours < 24) return [
+    ["Fat oxidation dominant", "High"],
+    ["Ketones beginning to rise", "Moderate"],
+    ["Growth hormone elevated", "Moderate"]
+  ];
+  if(hours < 36) return [
+    ["Insulin very low", "High"],
+    ["Ketones increasing", "Moderate"],
+    ["AMPK active / mTOR suppressed", "Estimated"]
+  ];
+  if(hours < 48) return [
+    ["Glycogen largely depleted", "Moderate"],
+    ["Ketones rising further", "Moderate"],
+    ["Autophagy likely increasing", "Estimated"]
+  ];
+  return [
+    ["Extended fast state", "High"],
+    ["Electrolytes more important", "High"],
+    ["Autophagy likely elevated", "Estimated"]
+  ];
+}
+function trainingText(hours){
+  if(hours < 18) return "Good window for normal Zone 2 or light strength work. Hard intervals should still feel mostly normal.";
+  if(hours < 36) return "Excellent window for Zone 2. High-intensity intervals may feel harder as glycogen drops.";
+  if(hours < 48) return "Best suited for Zone 2, walking, mobility, or easy hills. Be careful with intensity and hydration.";
+  return "Keep training easy unless you have a specific reason. Prioritize hydration, electrolytes, and safety.";
+}
+function update(){
+  const timer = document.getElementById("timer");
+  const started = document.getElementById("started");
+  const state = document.getElementById("state");
+  const training = document.getElementById("training");
+  if(!start){
+    timer.textContent = "00:00:00";
+    started.textContent = "Not currently fasting";
+    state.innerHTML = `<div class="note">Tap Start Fast when your fast begins.</div>`;
+    training.textContent = "No active fast.";
+    return;
+  }
+  const elapsed = Date.now() - start;
+  const hours = elapsed / 3600000;
+  timer.textContent = fmt(elapsed);
+  started.textContent = "Started: " + new Date(start).toLocaleString();
+  state.innerHTML = phase(hours).map(([a,b]) => `<div class="row"><div class="label">✓ ${a}</div><div class="confidence">${b}</div></div>`).join("");
+  training.textContent = trainingText(hours);
+}
+document.getElementById("startBtn").onclick = () => {
+  start = Date.now();
+  localStorage.setItem("fastStart", start);
+  update();
+};
+document.getElementById("resetBtn").onclick = () => {
+  start = null;
+  localStorage.removeItem("fastStart");
+  update();
+};
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js"); }
+setInterval(update, 1000); update();
+</script>
+</body>
+</html>
